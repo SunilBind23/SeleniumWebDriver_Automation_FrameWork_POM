@@ -1,0 +1,13 @@
+
+<suite name="Product Search Test Suite">
+	<test name="Amazon Product Search Test">
+		<parameter name="browser" value="chrome" />
+		<parameter name="url" value="https://www.amazon.in" />
+		<parameter name="productName"
+			value="vivo T4x 5G (Pronto Purple, 128 GB)" />
+
+		<classes>
+			<class name="com.TestCases.SearchProduct" />
+		</classes>
+	</test>
+</suite>
