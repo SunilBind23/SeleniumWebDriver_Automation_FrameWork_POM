@@ -1,16 +1,25 @@
-package WebUtils;
+package utils;
 
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.IOException;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.nio.file.Files;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Set;
 import java.util.concurrent.TimeoutException;
 
+import org.apache.poi.ss.usermodel.Sheet;
+import org.apache.poi.ss.usermodel.Cell;
+import org.apache.poi.ss.usermodel.Row;
+import org.apache.poi.ss.usermodel.Workbook;
+import org.apache.poi.ss.usermodel.WorkbookFactory;
 import org.openqa.selenium.Alert;
 import org.openqa.selenium.By;
 import org.openqa.selenium.Dimension;
@@ -35,7 +44,6 @@ import org.openqa.selenium.support.ui.WebDriverWait;
 
 import com.aventstack.extentreports.ExtentTest;
 import com.aventstack.extentreports.Status;
-import com.google.common.io.Files;
 
 public class WebUtil {
 
@@ -63,6 +71,7 @@ public class WebUtil {
 			driver = new EdgeDriver();
 			break;
 		default:
+
 			et.log(Status.FAIL, "Invalid browser name: " + browserName);
 			throw new IllegalArgumentException("Invalid browser name: " + browserName);
 		}
@@ -178,7 +187,7 @@ public class WebUtil {
 
 	public void type(WebElement we, String value, String element) {
 		try {
-			
+
 			we.sendKeys(value);
 			et.log(Status.INFO, element + " entered '" + value + "' successfully");
 		} catch (ElementNotInteractableException e) {
@@ -222,7 +231,7 @@ public class WebUtil {
 		} catch (Exception e) {
 			et.log(Status.FAIL, "Click failed on " + element + ". Error: " + e.getMessage());
 			e.printStackTrace();
-			
+
 		}
 	}
 
@@ -901,14 +910,110 @@ public class WebUtil {
 		try {
 			TakesScreenshot ts = (TakesScreenshot) driver;
 			File sourceFile = ts.getScreenshotAs(OutputType.FILE);
-			String filePath = "ScreenShot\\" + screenshotName + ".png";
+
+			String filePath = "ScreenShot/" + screenshotName + ".png";
 			File targetLocation = new File(filePath);
-			Files.copy(sourceFile, targetLocation);
+
+			Files.copy(sourceFile.toPath(), targetLocation.toPath());
+
 			et.log(Status.INFO, "Screenshot taken: " + filePath);
 		} catch (IOException e) {
 			et.log(Status.FAIL, "Failed to save screenshot. Error: " + e.getMessage());
+		}
+	}
+
+// Reading Data From Excel Sheet
+	public static int getRowNumberByTestCaseID(String excelPath, String sheetName, String testCaseID) {
+
+		int rowNumber = -1;
+
+		try {
+
+			FileInputStream fis = new FileInputStream(excelPath);
+			Workbook workbook = WorkbookFactory.create(fis); // xls + xlsx
+			Sheet sheet = workbook.getSheet(sheetName);
+
+			int lastRow = sheet.getLastRowNum();
+
+			for (int i = 1; i <= lastRow; i++) { // start from 1 (skip header)
+
+				Row row = sheet.getRow(i);
+				if (row == null) {
+					continue;
+				}
+
+				Cell cell = row.getCell(0, Row.MissingCellPolicy.CREATE_NULL_AS_BLANK);
+				String tcIDFromExcel = cell.getStringCellValue();
+
+				if (tcIDFromExcel.equalsIgnoreCase(testCaseID)) {
+					rowNumber = i;
+					break;
+				}
+			}
+
+			workbook.close();
+			fis.close();
+
+		} catch (Exception e) {
 			e.printStackTrace();
 		}
+
+		return rowNumber;
+	}
+
+	public static Map<String, String> readDataAsKeyValue(String excelPath, String sheetName, String testCaseID) {
+
+		Map<String, String> dataMap = new HashMap<>();
+
+		try {
+			FileInputStream fis = new FileInputStream(excelPath);
+			Workbook workbook = WorkbookFactory.create(fis); // xls + xlsx
+			Sheet sheet = workbook.getSheet(sheetName);
+
+			Row headerRow = sheet.getRow(0);
+			int lastRow = sheet.getLastRowNum();
+			int targetRow = -1;
+
+			// Find row by TestCaseID (assume column 0)
+			for (int i = 1; i <= lastRow; i++) {
+				Row row = sheet.getRow(i);
+				if (row == null)
+					continue;
+
+				Cell tcCell = row.getCell(0, Row.MissingCellPolicy.CREATE_NULL_AS_BLANK);
+				if (tcCell.getStringCellValue().equalsIgnoreCase(testCaseID)) {
+					targetRow = i;
+					break;
+				}
+			}
+
+			// TestCaseID not found
+			if (targetRow == -1) {
+				workbook.close();
+				fis.close();
+				return dataMap;
+			}
+
+			Row dataRow = sheet.getRow(targetRow);
+			int cellCount = headerRow.getLastCellNum();
+
+			// Header = key, Row data = value
+			for (int i = 0; i < cellCount; i++) {
+				Cell cellkeyObj = headerRow.getCell(i, Row.MissingCellPolicy.CREATE_NULL_AS_BLANK);
+				String key = cellkeyObj.getStringCellValue();
+				Cell CellvalueObj = dataRow.getCell(i, Row.MissingCellPolicy.CREATE_NULL_AS_BLANK);
+				String value = CellvalueObj.getStringCellValue();
+				dataMap.put(key, value);
+			}
+
+			workbook.close();
+			fis.close();
+
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
+
+		return dataMap;
 	}
 
 	public void brokenLink() {
